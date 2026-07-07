@@ -1,0 +1,17 @@
+cmake_minimum_required(VERSION 3.20)
+project(blackhole_gpu LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+find_package(Vulkan REQUIRED)
+
+# Modo IMAGEN (foto con disco de acreción)
+add_executable(gpu_image main.cpp)
+target_include_directories(gpu_image PRIVATE ${CMAKE_SOURCE_DIR}/../common)
+target_link_libraries(gpu_image PRIVATE Vulkan::Vulkan)
+target_compile_options(gpu_image PRIVATE -O3)
+
+# Modo VIDEO (esferas orbitando, lee escena de archivo)
+add_executable(gpu_video main3d.cpp)
+target_include_directories(gpu_video PRIVATE ${CMAKE_SOURCE_DIR}/../common)
+target_link_libraries(gpu_video PRIVATE Vulkan::Vulkan)
+target_compile_options(gpu_video PRIVATE -O3)

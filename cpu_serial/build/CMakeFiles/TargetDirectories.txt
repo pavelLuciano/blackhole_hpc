@@ -1,0 +1,4 @@
+/home/pavel/Dev/blackhole-hpc/cpu_serial/build/CMakeFiles/serial_image.dir
+/home/pavel/Dev/blackhole-hpc/cpu_serial/build/CMakeFiles/serial_video.dir
+/home/pavel/Dev/blackhole-hpc/cpu_serial/build/CMakeFiles/edit_cache.dir
+/home/pavel/Dev/blackhole-hpc/cpu_serial/build/CMakeFiles/rebuild_cache.dir

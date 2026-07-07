@@ -1,0 +1,17 @@
+cmake_minimum_required(VERSION 3.20)
+project(blackhole_omp LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+find_package(OpenMP REQUIRED)
+
+# Modo IMAGEN (foto con disco de acreción)
+add_executable(omp_image main.cpp)
+target_include_directories(omp_image PRIVATE ${CMAKE_SOURCE_DIR}/../common)
+target_link_libraries(omp_image PRIVATE OpenMP::OpenMP_CXX)
+target_compile_options(omp_image PRIVATE -O3)
+
+# Modo VIDEO (esferas orbitando, lee escena de archivo)
+add_executable(omp_video render_video.cpp)
+target_include_directories(omp_video PRIVATE ${CMAKE_SOURCE_DIR}/../common)
+target_link_libraries(omp_video PRIVATE OpenMP::OpenMP_CXX)
+target_compile_options(omp_video PRIVATE -O3)

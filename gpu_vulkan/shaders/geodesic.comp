@@ -1,0 +1,175 @@
+#version 450
+
+// ============================================================================
+//  geodesic.comp  —  Fase 3b: la física de geodesic.h portada a GLSL
+//
+//  Esto es el MISMO RK4 que validaste en CPU, pero ahora cada invocación del
+//  shader procesa UN píxel, y miles corren en paralelo en la GPU.
+//
+//  Modelo de ejecución:
+//    - Se lanza una grilla de invocaciones (work items).
+//    - gl_GlobalInvocationID.xy  =  la coordenada (x,y) del píxel.
+//    - Las invocaciones se agrupan en workgroups de local_size_x × local_size_y.
+//
+//  Compilar a SPIR-V:
+//    glslc geodesic.comp -o geodesic.spv
+// ============================================================================
+
+// Tamaño del workgroup: 16x16 = 256 invocaciones por bloque. Buen default para
+// NVIDIA (múltiplo del warp size de 32).
+layout(local_size_x = 16, local_size_y = 16) in;
+
+// --- Buffer de salida: aquí el shader escribe los colores RGBA de cada píxel.
+//  std430 = reglas de empaquetado predecibles. binding=0 lo conecta el host.
+layout(std430, binding = 0) buffer OutputBuffer {
+    vec4 pixels[];
+};
+
+// --- Parámetros de la escena, enviados desde el host vía push constants.
+//  Push constants = una vía rápida para pasar pocos datos al shader.
+layout(push_constant) uniform Params {
+    int   N;            // resolución (imagen N×N)
+    float r_s;          // radio de Schwarzschild
+    float cam_r;        // distancia cámara -> BH
+    float fov;          // semicampo de visión
+    float disk_inner;   // borde interno del disco
+    float disk_outer;   // borde externo del disco
+    int   max_steps;    // tope de pasos RK4
+    float dphi;         // paso de integración en phi
+} p;
+
+const float PI = 3.14159265358979323846;
+
+// --- Estado de la órbita: u = 1/r, du = du/dphi. (igual que en C++) ---
+// En GLSL usamos un vec2: .x = u, .y = du.
+
+// d²u/dφ² = 3 M u² - u   (M = 1)  -> devuelve (du, d²u)
+vec2 deriv(vec2 s) {
+    return vec2(s.y, 3.0 * s.x * s.x - s.x);
+}
+
+// Un paso de Runge-Kutta 4. Traducción literal del rk4_step de geodesic.h.
+vec2 rk4_step(vec2 s, float h) {
+    vec2 k1 = deriv(s);
+    vec2 k2 = deriv(s + 0.5 * h * k1);
+    vec2 k3 = deriv(s + 0.5 * h * k2);
+    vec2 k4 = deriv(s + h * k3);
+    return s + (h / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4);
+}
+
+// Códigos de resultado (equivalente al enum Hit de C++).
+const int HIT_HORIZON = 0;
+const int HIT_DISK    = 1;
+const int HIT_SKY     = 2;
+
+// Traza un rayo con ángulo psi. Devuelve vec3(hit, radio, phi_final).
+// El phi_final (deflexión acumulada) se usa para distorsionar el fondo.
+vec3 trace_ray(float psi) {
+    float r0 = p.cam_r;
+    float f0 = 1.0 - p.r_s / r0;                  // f(r) = 1 - 2M/r
+    float b  = r0 * sin(psi) / sqrt(f0);          // parámetro de impacto
+
+    vec2 s;
+    s.x = 1.0 / r0;                                // u0
+    float rhs = 1.0 / (b * b) - s.x * s.x * (1.0 - p.r_s * s.x);
+    s.y = sqrt(max(rhs, 0.0));                     // du0 > 0 (rayo entrante)
+
+    float phi = 0.0;
+    bool passed_periapsis = false;
+
+    for (int i = 0; i < p.max_steps; ++i) {
+        vec2 next = rk4_step(s, p.dphi);
+        phi += p.dphi;
+
+        if (next.x <= 0.0) return vec3(HIT_SKY, 1e9, phi);   // r -> inf
+        float r = 1.0 / next.x;
+
+        if (r <= p.r_s) return vec3(HIT_HORIZON, r, phi);    // horizonte
+
+        // Cruce del disco al pasar phi por PI.
+        float prev_phi = phi - p.dphi;
+        if (prev_phi < PI && phi >= PI &&
+            r >= p.disk_inner && r <= p.disk_outer) {
+            return vec3(HIT_DISK, r, phi);
+        }
+
+        // Periapsis: du pasa de + a - ; tras eso, si r > cam_r, escapó.
+        if (s.y > 0.0 && next.y <= 0.0) passed_periapsis = true;
+        if (passed_periapsis && r > p.cam_r) return vec3(HIT_SKY, r, phi);
+
+        s = next;
+    }
+    float rr = (s.x > 0.0) ? 1.0 / s.x : 1e9;
+    return vec3(HIT_SKY, rr, phi);
+}
+
+// --- Fondo estelar procedural (traducción de hash2/starfield de la CPU) ---
+float hash2(float x, float y) {
+    float h = sin(x * 127.1 + y * 311.7) * 43758.5453;
+    return h - floor(h);
+}
+float starfield(float ax, float ay) {
+    float scale = 40.0;
+    float cx = floor(ax * scale);
+    float cy = floor(ay * scale);
+    float rr = hash2(cx, cy);
+    if (rr > 0.97) {
+        float br = hash2(cy, cx);
+        return 0.5 + 0.5 * br;
+    }
+    return 0.0;
+}
+
+// Colorea según el resultado. Equivalente a shade() del cpu_serial/main.cpp.
+// sx,sy son la coordenada de pantalla; phi la deflexión (para el fondo).
+vec4 shade(int hit, float hit_r, float phi, float sx, float sy) {
+    if (hit == HIT_HORIZON) {
+        return vec4(0.0, 0.0, 0.0, 1.0);            // sombra: negro
+    } else if (hit == HIT_DISK) {
+        float t = clamp((hit_r - p.disk_inner) /
+                        (p.disk_outer - p.disk_inner), 0.0, 1.0);
+        return vec4(1.0,
+                    (180.0 * (1.0 - t) + 60.0) / 255.0,
+                    (40.0  * (1.0 - t)) / 255.0,
+                    1.0);                            // disco: gradiente caliente
+    } else {
+        // Fondo: dirección de cielo rotada por la deflexión gravitacional.
+        float ang = atan(sy, sx);
+        float rad = sqrt(sx * sx + sy * sy);
+        float deflect = phi;
+        float ax = cos(ang) * (rad + deflect * 0.15);
+        float ay = sin(ang) * (rad + deflect * 0.15);
+
+        float star = starfield(ax, ay);
+        if (star > 0.0) {
+            float v = star;
+            return vec4(v, v, min(1.0, v * 1.1), 1.0);
+        } else {
+            float bg = (10.0 + 12.0 * rad) / 255.0;
+            return vec4(bg * 0.4, bg * 0.5, bg * 0.9, 1.0);
+        }
+    }
+}
+
+void main() {
+    // La coordenada de esta invocación = el píxel que le toca.
+    uint x = gl_GlobalInvocationID.x;
+    uint y = gl_GlobalInvocationID.y;
+
+    // Guard: la grilla de workgroups puede exceder N (redondeo). Descartar.
+    if (x >= uint(p.N) || y >= uint(p.N)) return;
+
+    // Coordenada de pantalla normalizada a [-1, 1]  (igual que en CPU).
+    float sx = (2.0 * (float(x) + 0.5) / float(p.N) - 1.0);
+    float sy = (2.0 * (float(y) + 0.5) / float(p.N) - 1.0);
+
+    float psi = sqrt(sx * sx + sy * sy) * p.fov;
+    psi = max(psi, 1e-5);
+
+    vec3 res = trace_ray(psi);
+    int hit  = int(res.x + 0.5);
+    float hr = res.y;
+    float phi = res.z;
+
+    pixels[y * uint(p.N) + x] = shade(hit, hr, phi, sx, sy);
+}

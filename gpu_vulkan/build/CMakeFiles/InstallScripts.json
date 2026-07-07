@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/pavel/Dev/blackhole-hpc/gpu_vulkan/build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

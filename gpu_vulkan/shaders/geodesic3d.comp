@@ -1,0 +1,176 @@
+#version 450
+
+// ============================================================================
+//  geodesic3d.comp  —  Modo extendido en GPU: esferas 3D orbitando
+//
+//  Porta geodesic3d.h (trazado 3D con reconstrucción desde el plano de Binet)
+//  al compute shader. Cada invocación traza un rayo 3D con posición real, y
+//  testea intersección con esferas y disco. Una órbita = un barrido de 't'.
+//
+//  Compilar:  glslc geodesic3d.comp -o geodesic3d.spv
+// ============================================================================
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(std430, binding = 0) buffer OutputBuffer { vec4 pixels[]; };
+
+// Esferas en su propio storage buffer (binding=1): sin límite de tamaño y
+// evita exceder los 128 bytes garantizados de push constants.
+struct SphereData { vec4 c; vec4 col; };  // c.xyz=centro c.w=radio, col.rgb=color
+layout(std430, binding = 1) buffer SphereBuffer { SphereData spheres[]; };
+
+layout(push_constant) uniform Params {
+    int   N;
+    float r_s;
+    float escape_r;
+    float dphi;
+    int   max_steps;
+    int   use_disk;
+    float disk_inner;
+    float disk_outer;
+    int   num_spheres;
+    float pad0, pad1, pad2;
+    vec4  cam;        // xyz = posición cámara
+    vec4  fwd;        // xyz = forward
+    vec4  right;      // xyz = right
+    vec4  camup;      // xyz = up
+    float fov;
+    float pad3, pad4, pad5;
+} p;
+
+const float PI = 3.14159265358979323846;
+
+// --- Binet en el plano (idéntico al modo base) ---
+vec2 deriv(vec2 s){ return vec2(s.y, 3.0*s.x*s.x - s.x); }
+vec2 rk4(vec2 s, float h){
+    vec2 k1=deriv(s);
+    vec2 k2=deriv(s+0.5*h*k1);
+    vec2 k3=deriv(s+0.5*h*k2);
+    vec2 k4=deriv(s+h*k3);
+    return s+(h/6.0)*(k1+2.0*k2+2.0*k3+k4);
+}
+
+// Resultado del trazado empaquetado:
+//   hit: 0=horizonte 1=esfera 2=cielo 3=disco
+struct TraceRes { int hit; vec3 dir; int sphere_id; float disk_r; vec3 hit_pos; };
+
+TraceRes trace(vec3 origin, vec3 dir) {
+    dir = normalize(dir);
+    vec3 O = origin;
+    float r0 = length(O);
+
+    vec3 n = cross(O, dir);
+    float nlen = length(n);
+    if (nlen < 1e-12) n = vec3(0,0,1); else n = n/nlen;
+
+    vec3 ex = normalize(O);
+    vec3 ey = normalize(cross(n, ex));
+
+    float d_ex = dot(dir, ex);
+    float d_ey = dot(dir, ey);
+    float psi = atan(abs(d_ey), -d_ex);
+
+    float f0 = 1.0 - p.r_s/r0;
+    float b = r0 * sin(psi) / sqrt(f0 > 0.0 ? f0 : 1e-9);
+
+    vec2 s;
+    s.x = 1.0/r0;
+    float rhs = 1.0/(b*b) - s.x*s.x*(1.0 - p.r_s*s.x);
+    s.y = sqrt(rhs > 0.0 ? rhs : 0.0);
+
+    float phi_sign = (d_ey >= 0.0) ? 1.0 : -1.0;
+    float phi = 0.0;
+    bool passed_peri = false;
+    vec3 prevPos = O;
+
+    TraceRes res;
+    for (int i=0;i<p.max_steps;++i){
+        vec2 nxt = rk4(s, p.dphi);
+        phi += p.dphi;
+
+        if (nxt.x <= 0.0){
+            vec3 pp = ex*cos(phi) + ey*(sin(phi)*phi_sign);
+            res.hit=2; res.dir=normalize(pp); res.sphere_id=-1; res.disk_r=0.0; res.hit_pos=vec3(0);
+            return res;
+        }
+        float r = 1.0/nxt.x;
+        if (r <= p.r_s){
+            res.hit=0; res.dir=dir; res.sphere_id=-1; res.disk_r=0.0; res.hit_pos=vec3(0);
+            return res;
+        }
+
+        vec3 pos = ex*(r*cos(phi)) + ey*(r*sin(phi)*phi_sign);
+
+        // disco: cruce del plano ecuatorial y=0
+        if (p.use_disk==1 && (prevPos.y*pos.y < 0.0)){
+            float t = prevPos.y/(prevPos.y - pos.y);
+            vec3 cp = prevPos + (pos-prevPos)*t;
+            float rr = length(cp);
+            if (rr>=p.disk_inner && rr<=p.disk_outer){
+                res.hit=3; res.dir=normalize(pos); res.sphere_id=-1; res.disk_r=rr; res.hit_pos=cp;
+                return res;
+            }
+        }
+
+        // esferas
+        for (int k=0;k<p.num_spheres;++k){
+            vec3 c = spheres[k].c.xyz;
+            float rad = spheres[k].c.w;
+            if (length(pos - c) <= rad){
+                res.hit=1; res.dir=normalize(pos); res.sphere_id=k; res.disk_r=0.0; res.hit_pos=pos;
+                return res;
+            }
+        }
+
+        if (s.y>0.0 && nxt.y<=0.0) passed_peri=true;
+        if (passed_peri && r>p.escape_r){
+            vec3 d = pos-prevPos;
+            res.hit=2; res.dir=normalize(d); res.sphere_id=-1; res.disk_r=0.0; res.hit_pos=vec3(0);
+            return res;
+        }
+        prevPos = pos;
+        s = nxt;
+    }
+    vec3 d = prevPos - O;
+    res.hit=2; res.dir=normalize(d); res.sphere_id=-1; res.disk_r=0.0; res.hit_pos=vec3(0);
+    return res;
+}
+
+// fondo estelar procedural (igual que el modo base)
+float hash2(float x,float y){ float h=sin(x*127.1+y*311.7)*43758.5453; return h-floor(h); }
+float starfield(float ax,float ay){
+    float sc=40.0, cx=floor(ax*sc), cy=floor(ay*sc);
+    if(hash2(cx,cy)>0.97){ float br=hash2(cy,cx); return 0.5+0.5*br; }
+    return 0.0;
+}
+
+void main(){
+    uint px = gl_GlobalInvocationID.x;
+    uint py = gl_GlobalInvocationID.y;
+    if (px >= uint(p.N) || py >= uint(p.N)) return;
+
+    float sx = (2.0*(float(px)+0.5)/float(p.N) - 1.0);
+    float sy = (2.0*(float(py)+0.5)/float(p.N) - 1.0);
+
+    vec3 dir = normalize(p.fwd.xyz + p.right.xyz*(sx*p.fov) + p.camup.xyz*(-sy*p.fov));
+    TraceRes res = trace(p.cam.xyz, dir);
+
+    vec4 col;
+    if (res.hit==0){
+        col = vec4(0,0,0,1);
+    } else if (res.hit==1){
+        vec3 c = spheres[res.sphere_id].col.rgb;
+        vec3 nrm = normalize(res.hit_pos - spheres[res.sphere_id].c.xyz);
+        vec3 ld = normalize(vec3(-0.4,0.7,-0.6));
+        float diff = max(dot(nrm,ld), 0.15);
+        col = vec4(min(c*diff, vec3(1.0)), 1.0);
+    } else if (res.hit==3){
+        float f = clamp((res.disk_r-p.disk_inner)/(p.disk_outer-p.disk_inner),0.0,1.0);
+        col = vec4(1.0, (180.0*(1.0-f)+60.0)/255.0, (40.0*(1.0-f))/255.0, 1.0);
+    } else {
+        float star = starfield(res.dir.x, res.dir.y);
+        if (star>0.0) col = vec4(vec3(star), 1.0);
+        else col = vec4(6.0/255.0, 8.0/255.0, 16.0/255.0, 1.0);
+    }
+    pixels[py*uint(p.N)+px] = col;
+}

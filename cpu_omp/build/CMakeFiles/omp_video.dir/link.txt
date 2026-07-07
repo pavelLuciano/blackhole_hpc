@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/omp_video.dir/link.d CMakeFiles/omp_video.dir/render_video.cpp.o -o omp_video  /usr/lib/libgomp.so /usr/lib/libpthread.a

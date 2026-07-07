@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/pavel/Dev/blackhole-hpc/cpu_serial/build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

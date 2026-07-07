@@ -1,0 +1,4 @@
+/home/pavel/Dev/blackhole-hpc/cpu_omp/build/CMakeFiles/omp_image.dir
+/home/pavel/Dev/blackhole-hpc/cpu_omp/build/CMakeFiles/omp_video.dir
+/home/pavel/Dev/blackhole-hpc/cpu_omp/build/CMakeFiles/edit_cache.dir
+/home/pavel/Dev/blackhole-hpc/cpu_omp/build/CMakeFiles/rebuild_cache.dir

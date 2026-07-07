@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/gpu_video.dir/link.d CMakeFiles/gpu_video.dir/main3d.cpp.o -o gpu_video  /usr/lib/libvulkan.so

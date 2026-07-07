@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/serial_video.dir/link.d CMakeFiles/serial_video.dir/render_video.cpp.o -o serial_video

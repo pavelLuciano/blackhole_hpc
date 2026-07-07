@@ -1,0 +1,17 @@
+# Escena por defecto para el modo video (sin disco de acreción).
+# Líneas que empiezan con # son comentarios.
+#
+# Cámara:  cam x y z
+cam 0 6 -45
+#
+# Esferas: sphere R incl phase speed radius r g b
+#   R      = radio de la órbita
+#   incl   = inclinación de la órbita (radianes; 0 = ecuatorial horizontal)
+#   phase  = fase inicial (radianes)
+#   speed  = velocidad angular
+#   radius = tamaño de la esfera
+#   r g b  = color (0..1)
+sphere 14  0.6   0.0  0.9  2.2  1.0  0.25 0.20
+sphere 22 -0.4   2.1  0.6  2.8  0.25 0.5  1.0
+sphere 30  0.9   4.0  0.4  3.2  0.3  1.0  0.35
+sphere 19  0.0   1.1  0.5  3.0  1.0  0.85 0.2

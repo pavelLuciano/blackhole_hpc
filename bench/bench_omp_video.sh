@@ -5,11 +5,11 @@
 # Salida: results/csv/omp_video.csv
 set -e
 BIN=../cpu_omp/build/omp_video
-OUT=../results/csv/omp_video_1h.csv
+OUT=../results/csv/omp_video_24h.csv
 SCENE=../scenes/default.txt
 RESOLUCIONES=(4096)
 HILOS_COMPLETO=(20)   # para N <= 2048
-HILOS_4096=(1)             # para N = 4096 (evita corridas larguísimas)
+HILOS_4096=(2 4)             # para N = 4096 (evita corridas larguísimas)
 N_FRAMES=10
 N_REPS=1
 TMP=/tmp/bench_v.ppm

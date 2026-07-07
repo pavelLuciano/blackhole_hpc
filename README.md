@@ -252,7 +252,8 @@ Para reducir el ruido, cada configuración se ejecutó múltiples veces (5 repet
 
 El test de validación confirmó que la transición entre la caída al horizonte y el escape al infinito de los rayos ocurre en el parámetro de impacto crítico teórico $b_{\text{crit}} = 3\sqrt{3} \approx 5.196$, lo que valida la implementación de la física.
 
-![Imagen del agujero negro](results/omp_image.ppm)
+![Imagen del agujero negro](results/image.png
+)
 
 **Figura 6.1.** *Imagen del agujero negro (modo imagen), mostrando la sombra central, el disco de acreción lensado y el fondo estelar. La forma de anillo del disco es consecuencia directa de la curvatura de la luz: se observa la parte del disco situada detrás del agujero, cuya luz es desviada hacia la cámara.*
 
@@ -289,7 +290,7 @@ La coincidencia con el factor teórico de 4.0 es prácticamente exacta, lo que v
 
 ![Speedup OpenMP imagen](results/analisis/omp_imagen_speedup.png)
 
-**Figura 6.3.** *Speedup de OpenMP en modo imagen frente al número de hilos (eje horizontal en escala lineal; se marcan únicamente los valores probados). La recta discontinua representa el escalado lineal ideal.*
+**Figura 6.3.** *Speedup de OpenMP en modo imagen frente al número de hilos. La recta discontinua representa el escalado lineal ideal.*
 
 La Tabla 6.2 detalla el speedup y la eficiencia a $4096^2$, donde el cómputo domina y el ruido de medición es mínimo.
 
@@ -338,34 +339,34 @@ El modo video, que genera una secuencia de fotogramas, constituye la carga inten
 | 512² | 14 291.0 | 2 211.0 | 1 348.2 | 10.6× |
 | 1024² | 58 624.9 | 8 989.3 | 2 327.9 | 25.2× |
 | 2048² | 237 138.9 | 35 310.8 | 9 142.1 | 25.9× |
-| 4096² | — | 145 808.0 | 36 105.0 | — |
+| 4096² | 966 874.2 | 145 808.0 | 36 105.0 | 26.8x |
 
 ![Cómputo vs resolución (video)](results/analisis/video_computo_vs_resolucion.png)
 
 **Figura 6.5.** *Tiempo de cómputo en función de la resolución para el modo video.*
 
-En esta carga la ventaja de la GPU es consistente y elevada (hasta ~26× frente a la versión secuencial en tiempo total), pues el overhead de inicialización se reparte entre todos los fotogramas. A $4096^2$ únicamente se completaron las versiones GPU y OpenMP: la versión secuencial resultó prohibitivamente lenta (a $2048^2$ ya requiere casi cuatro minutos), lo que por sí mismo ilustra la necesidad de la aceleración para cargas de esta magnitud.
+En esta carga la ventaja de la GPU es consistente y elevada (hasta ~26× frente a la versión secuencial en tiempo total), pues el overhead de inicialización se reparte entre todos los fotogramas.
 
 El análisis de escalabilidad de OpenMP en video revela un comportamiento **notablemente peor** que en imagen, como muestra la Tabla 6.5.
 
-**Tabla 6.5.** *Eficiencia de OpenMP en modo video, por resolución y número de hilos. Se contrasta con la eficiencia del modo imagen a 4096².*
+**Tabla 6.5.** *Eficiencia de OpenMP en modo video, por resolución y número de hilos.*
 
-| Hilos | Video 512² | Video 1024² | Video 2048² | Imagen 4096² |
+| Hilos | Video 512² | Video 1024² | Video 2048² | Video 4096² |
 |---:|---:|---:|---:|---:|
 | 1 | 100 % | 100 % | 100 % | 100 % |
-| 2 | 100 % | 97 % | 102 % | 100 % |
-| 4 | 99 % | 91 % | 89 % | 99 % |
-| 8 | 83 % | 65 % | 68 % | 87 % |
-| 16 | 57 % | 42 % | 43 % | 70 % |
-| 20 | 39 % | 34 % | 35 % | 66 % |
+| 2 | 100 % | 97 % | 102 % | 97 % |
+| 4 | 99 % | 91 % | 89 % | 80 % |
+| 8 | 83 % | 65 % | 68 % | 66 % |
+| 16 | 57 % | 42 % | 43 % | 42 % |
+| 20 | 39 % | 34 % | 35 % | 33 % |
 
 ![Speedup OpenMP video](results/analisis/omp_video_speedup.png)
 
-**Figura 6.6.** *Speedup de OpenMP en modo video frente al número de hilos. La serie de $4096^2$ toma como base 8 hilos, por lo que su speedup se expresa relativo a esa configuración.*
+**Figura 6.6.** *Speedup de OpenMP en modo video frente al número de hilos.*
 
-La eficiencia en video decae mucho más rápido que en imagen: con 20 hilos cae al 34–39 %, frente al 66 % del modo imagen. El caso más ilustrativo es el de $512^2$, donde el speedup con 20 hilos (7.76×) es **inferior** al obtenido con 16 hilos (9.12×): añadir hilos llega a empeorar el rendimiento. La causa es la mayor **fracción secuencial** del modo video: por cada fotograma se lee el archivo de escena, se calculan las órbitas y, sobre todo, se guarda la imagen en disco. Este último es un cuello de botella de entrada/salida que no se paraleliza y que, conforme a la ley de Amdahl, limita el speedup; al aumentar los hilos, el tiempo de cómputo se reduce pero el de E/S permanece constante, hasta dominar el total. En la resolución más pequeña, donde el cómputo por fotograma es menor, este efecto es más acusado, hasta el punto de que la contención por el acceso a disco supera la ganancia de más hilos.
+La eficiencia en video decae mucho más rápido que en imagen: con 20 hilos cae al 33–39 %. El caso más ilustrativo es el de $512^2$, donde el speedup con 20 hilos (7.76×) es **inferior** al obtenido con 16 hilos (9.12×): añadir hilos llega a empeorar el rendimiento. La causa es la mayor **fracción secuencial** del modo video: por cada fotograma se lee el archivo de escena, se calculan las órbitas y, sobre todo, se guarda la imagen en disco. Este último es un cuello de botella de entrada/salida que no se paraleliza y que, conforme a la ley de Amdahl, limita el speedup; al aumentar los hilos, el tiempo de cómputo se reduce pero el de E/S permanece constante, hasta dominar el total. En la resolución más pequeña, donde el cómputo por fotograma es menor, este efecto es más acusado, hasta el punto de que la contención por el acceso a disco supera la ganancia de más hilos.
 
-![Frame del video con anillo de Einstein](results/analisis/frame_einstein.png)
+![Frame del video con anillo de Einstein](results/frame_einstein.png)
 
 **Figura 6.7.** *Fotograma del modo video mostrando el efecto de lente gravitacional sobre una esfera en órbita que pasa detrás del agujero negro, formando un anillo de Einstein.*
 
@@ -377,7 +378,7 @@ El presente trabajo implementó y comparó tres estrategias de cómputo —secue
 
 **Sobre la correctitud física.** La implementación reproduce el parámetro de impacto crítico teórico $b_{\text{crit}} = 3\sqrt{3} \approx 5.196$, lo que valida la correcta integración de las geodésicas de Schwarzschild. Las imágenes generadas muestran de forma físicamente consistente la sombra del agujero negro, el disco de acreción lensado y el efecto de lente gravitacional sobre objetos en órbita, incluyendo anillos de Einstein.
 
-**Sobre la paralelización en CPU.** La versión OpenMP alcanzó un speedup máximo de ≈13× con 20 hilos en modo imagen. El escalado es prácticamente ideal hasta 4 hilos (eficiencia ≥ 99 %) y decae hasta el 66 % con 20 hilos, de forma coherente con la ley de Amdahl y el hyperthreading. En modo video, la eficiencia cae aún más (hasta 34–39 %), e incluso se observó rendimiento decreciente al pasar de 16 a 20 hilos en la resolución más baja, debido al cuello de botella de entrada/salida al guardar cada fotograma. Este contraste ilustra un principio fundamental de HPC: **el speedup alcanzable está limitado por la fracción no paralelizable del programa**, que en el modo video es considerablemente mayor.
+**Sobre la paralelización en CPU.** La versión OpenMP alcanzó un speedup máximo de ≈13× con 20 hilos en modo imagen. El escalado es prácticamente ideal hasta 4 hilos (eficiencia ≥ 99 %) y decae hasta el 66 % con 20 hilos, de forma coherente con la ley de Amdahl y el hyperthreading. En modo video, la eficiencia cae aún más (hasta 33–39 %), e incluso se observó rendimiento decreciente al pasar de 16 a 20 hilos en la resolución más baja, debido al cuello de botella de entrada/salida al guardar cada fotograma. Este contraste ilustra un principio fundamental de HPC: **el speedup alcanzable está limitado por la fracción no paralelizable del programa**, que en el modo video es considerablemente mayor.
 
 **Sobre la paralelización en GPU.** La GPU demostró una capacidad de cómputo bruto muy superior, siendo más de **1 200× más rápida** que la versión secuencial en cómputo puro. Sin embargo, el análisis del tiempo total reveló un overhead de inicialización de ≈550 ms fijos más un costo creciente por transferencia de datos. Como consecuencia, el speedup real en tiempo total varía enormemente según el tamaño del problema: de apenas 3.2× a 512² hasta 28.4× a 4096².
 
@@ -396,8 +397,5 @@ En síntesis, el trabajo cumplió su doble objetivo: reprodujo de forma físicam
 2. Schutz, B. *A First Course in General Relativity*. Cambridge University Press.
 3. Documentación oficial de Vulkan. Khronos Group. https://docs.vulkan.org
 4. Documentación de OpenMP. https://www.openmp.org
-5. _[Tutorial de Vulkan de Khronos y demás recursos utilizados.]_
 
 ---
-
-_Las secciones marcadas con «_[...]_» deben completarse con la información del entorno de pruebas y las imágenes generadas._

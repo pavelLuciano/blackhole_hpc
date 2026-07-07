@@ -1,9 +1,6 @@
 # Simulación de un Agujero Negro mediante Trazado de Geodésicas: Comparación de Estrategias de Paralelización CPU y GPU
 
-**Autor:** _[tu nombre]_
-**Curso:** _[nombre del ramo de HPC]_
-**Fecha:** _[fecha de entrega]_
-
+**Autor:** _Luciano Ambiado_
 ---
 
 ## Índice
@@ -394,7 +391,6 @@ En síntesis, el trabajo cumplió su doble objetivo: reprodujo de forma físicam
 
 ## 8. Referencias
 
-> _Completar con las referencias efectivamente consultadas. Se sugieren:_
 
 1. Misner, C. W., Thorne, K. S., & Wheeler, J. A. *Gravitation*. W. H. Freeman, 1973.
 2. Schutz, B. *A First Course in General Relativity*. Cambridge University Press.

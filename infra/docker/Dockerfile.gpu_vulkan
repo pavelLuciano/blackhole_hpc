@@ -50,7 +50,7 @@ RUN rm -rf build \
 # --- imagen final: solo el loader de Vulkan, sin todo el SDK ---
 FROM ubuntu:24.04
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libvulkan1 vulkan-validationlayers \
+        libvulkan1 vulkan-validationlayers libx11-6 libxext6 \
     && rm -rf /var/lib/apt/lists/*
 
 # IMPORTANTE: los binarios buscan el shader en "../shaders/geodesic*.spv"

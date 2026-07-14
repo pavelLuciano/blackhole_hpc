@@ -27,9 +27,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential cmake ca-certificates wget gnupg curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Repo oficial de LunarG para el Vulkan SDK (incluye vulkan_raii.hpp)
-RUN wget -qO /usr/share/keyrings/lunarg-signing-key-pub.asc \
-        https://packages.lunarg.com/lunarg-signing-key-pub.asc \
+# Repo oficial de LunarG para el Vulkan SDK (incluye vulkan_raii.hpp).
+# La llave se descarga en formato ASCII-armored y hay que "dearmorearla"
+# a binario dentro de /etc/apt/trusted.gpg.d/ para que apt confíe en el
+# repo sin necesitar la cláusula [signed-by=...] en el .list.
+RUN wget -qO- https://packages.lunarg.com/lunarg-signing-key-pub.asc \
+        | gpg --dearmor -o /etc/apt/trusted.gpg.d/lunarg.gpg \
     && wget -qO /etc/apt/sources.list.d/lunarg-vulkan-noble.list \
         https://packages.lunarg.com/vulkan/lunarg-vulkan-noble.list \
     && apt-get update && apt-get install -y --no-install-recommends vulkan-sdk \

@@ -1,0 +1,11 @@
+# Evita copiar caches de CMake ya generadas en el host (tienen rutas
+# absolutas del host grabadas en CMakeCache.txt, lo que rompe el build
+# dentro del contenedor con un path distinto).
+**/build/
+
+# Artefactos pesados que no hacen falta dentro de las imágenes de build
+# (los .spv de gpu_vulkan/shaders/ SÍ se necesitan y no caen en estos patrones)
+*.ppm
+*.mp4
+results/
+.git/

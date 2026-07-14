@@ -40,7 +40,8 @@ COPY common /src/common
 COPY gpu_vulkan /src/gpu_vulkan
 
 WORKDIR /src/gpu_vulkan
-RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+RUN rm -rf build \
+    && cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
     && cmake --build build -j"$(nproc)"
 
 # --- imagen final: solo el loader de Vulkan, sin todo el SDK ---

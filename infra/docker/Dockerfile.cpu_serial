@@ -36,6 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY --from=build /src/cpu_serial/build/serial_image /app/serial_image
 COPY --from=build /src/cpu_serial/build/serial_video /app/serial_video
+COPY scenes /app/scenes
 
 # Sin ENTRYPOINT fijo: se invoca explícitamente el binario deseado
 # (serial_image o serial_video) desde docker-compose.yml o docker run.

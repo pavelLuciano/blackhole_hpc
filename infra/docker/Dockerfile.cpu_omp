@@ -41,5 +41,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY --from=build /src/cpu_omp/build/omp_image /app/omp_image
 COPY --from=build /src/cpu_omp/build/omp_video /app/omp_video
+COPY scenes /app/scenes
 
 CMD ["/app/omp_image"]

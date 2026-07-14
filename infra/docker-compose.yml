@@ -1,0 +1,56 @@
+# ============================================================================
+#  docker-compose.yml — orquesta las 3 implementaciones del renderer
+#
+#  Ejecutar SIEMPRE desde la raíz del repositorio (el build context de cada
+#  servicio es ".", para que los Dockerfiles puedan copiar common/ + su
+#  respectiva carpeta preservando la estructura relativa):
+#
+#      docker compose -f infra/docker-compose.yml build
+#      docker compose -f infra/docker-compose.yml run --rm serial /app/serial_image 1024 /app/results/serial.ppm
+#      docker compose -f infra/docker-compose.yml run --rm omp    /app/omp_image    1024 /app/results/omp.ppm
+#      docker compose -f infra/docker-compose.yml run --rm gpu    /app/bin/gpu_image 1024 /app/results/gpu.ppm
+#
+#  El servicio "gpu" requiere NVIDIA Container Toolkit instalado en el host
+#  y Docker configurado con el runtime nvidia (`docker info | grep nvidia`).
+#  Si no está disponible, comenta el bloque "deploy" del servicio gpu y
+#  documenta esa limitación en el informe: es un resultado válido en sí
+#  mismo (el overhead de pasar GPU discreta a un contenedor en un laptop
+#  con GPU híbrida Intel+NVIDIA).
+# ============================================================================
+
+services:
+  serial:
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.cpu_serial
+    image: blackhole-serial
+    volumes:
+      - ../results:/app/results
+      - ../scenes:/app/scenes:ro
+
+  omp:
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.cpu_omp
+    image: blackhole-omp
+    environment:
+      - OMP_NUM_THREADS=${OMP_NUM_THREADS:-4}
+    volumes:
+      - ../results:/app/results
+      - ../scenes:/app/scenes:ro
+
+  gpu:
+    build:
+      context: ..
+      dockerfile: infra/docker/Dockerfile.gpu_vulkan
+    image: blackhole-gpu
+    volumes:
+      - ../results:/app/results
+      - ../scenes:/app/scenes:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

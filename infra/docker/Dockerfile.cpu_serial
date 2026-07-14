@@ -1,0 +1,39 @@
+# ============================================================================
+#  Dockerfile.cpu_serial — build + runtime de la versión secuencial
+#
+#  Contexto de build esperado: la RAÍZ del repositorio (para poder copiar
+#  common/ y cpu_serial/ preservando la misma estructura relativa que usa
+#  cpu_serial/CMakeLists.txt, que incluye "${CMAKE_SOURCE_DIR}/../common").
+#
+#  Build:  docker build -f infra/docker/Dockerfile.cpu_serial -t blackhole-serial .
+#  Run:    docker run --rm -v "$(pwd)/results:/app/results" blackhole-serial \
+#              /app/serial_image 1024 /app/results/serial.ppm
+# ============================================================================
+
+FROM debian:bookworm-slim AS build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential cmake ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY common /src/common
+COPY cpu_serial /src/cpu_serial
+
+WORKDIR /src/cpu_serial
+RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build build -j"$(nproc)"
+
+# --- imagen final, sin toolchain de compilación ---
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=build /src/cpu_serial/build/serial_image /app/serial_image
+COPY --from=build /src/cpu_serial/build/serial_video /app/serial_video
+
+# Sin ENTRYPOINT fijo: se invoca explícitamente el binario deseado
+# (serial_image o serial_video) desde docker-compose.yml o docker run.
+CMD ["/app/serial_image"]

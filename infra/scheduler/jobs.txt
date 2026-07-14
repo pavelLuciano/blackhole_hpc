@@ -1,0 +1,20 @@
+# ============================================================================
+#  jobs.txt — manifiesto de trabajos, estilo cola de SLURM
+#
+#  Formato: nombre_job;servicio;comando_y_argumentos
+#  (el "servicio" es el nombre definido en infra/docker-compose.yml)
+#
+#  Líneas que empiezan con '#' se ignoran.
+# ============================================================================
+
+serial_512;serial;/app/serial_image 512 /app/results/serial_512.ppm
+serial_1024;serial;/app/serial_image 1024 /app/results/serial_1024.ppm
+serial_2048;serial;/app/serial_image 2048 /app/results/serial_2048.ppm
+
+omp_512_t4;omp;/app/omp_image 512 /app/results/omp_512_t4.ppm
+omp_1024_t4;omp;/app/omp_image 1024 /app/results/omp_1024_t4.ppm
+omp_2048_t4;omp;/app/omp_image 2048 /app/results/omp_2048_t4.ppm
+
+gpu_512;gpu;/app/bin/gpu_image 512 /app/results/gpu_512.ppm
+gpu_1024;gpu;/app/bin/gpu_image 1024 /app/results/gpu_1024.ppm
+gpu_2048;gpu;/app/bin/gpu_image 2048 /app/results/gpu_2048.ppm

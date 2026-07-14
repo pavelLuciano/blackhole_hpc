@@ -1,0 +1,61 @@
+# ============================================================================
+#  Dockerfile.gpu_vulkan — build + runtime de la versión GPU (Vulkan compute)
+#
+#  Usa Ubuntu 24.04 + el SDK oficial de LunarG (vía su repo apt), porque
+#  necesitamos vulkan/vulkan_raii.hpp (los bindings C++ RAII), que NO vienen
+#  en el paquete libvulkan-dev de Debian/Ubuntu por defecto.
+#
+#  Contexto de build esperado: la RAÍZ del repositorio. Los shaders (.spv)
+#  ya están precompilados en gpu_vulkan/shaders/, así que NO se necesita
+#  slangc/glslc dentro de la imagen — solo el loader de Vulkan y los headers
+#  para compilar el host (main.cpp / main3d.cpp).
+#
+#  REQUISITO EN EL HOST (fuera del contenedor): para que el contenedor vea
+#  la GPU NVIDIA hace falta el NVIDIA Container Toolkit instalado en
+#  CachyOS (paquete AUR "nvidia-container-toolkit") y correr con --gpus all.
+#  Sin esto, el contenedor no encontrará ningún ICD de Vulkan y fallará al
+#  crear la instancia.
+#
+#  Build:  docker build -f infra/docker/Dockerfile.gpu_vulkan -t blackhole-gpu .
+#  Run:    docker run --rm --gpus all -v "$(pwd)/results:/app/results" \
+#              blackhole-gpu /app/bin/gpu_image 1024 /app/results/gpu.ppm
+# ============================================================================
+
+FROM ubuntu:24.04 AS build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential cmake ca-certificates wget gnupg curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Repo oficial de LunarG para el Vulkan SDK (incluye vulkan_raii.hpp)
+RUN wget -qO /usr/share/keyrings/lunarg-signing-key-pub.asc \
+        https://packages.lunarg.com/lunarg-signing-key-pub.asc \
+    && wget -qO /etc/apt/sources.list.d/lunarg-vulkan-noble.list \
+        https://packages.lunarg.com/vulkan/lunarg-vulkan-noble.list \
+    && apt-get update && apt-get install -y --no-install-recommends vulkan-sdk \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY common /src/common
+COPY gpu_vulkan /src/gpu_vulkan
+
+WORKDIR /src/gpu_vulkan
+RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+    && cmake --build build -j"$(nproc)"
+
+# --- imagen final: solo el loader de Vulkan, sin todo el SDK ---
+FROM ubuntu:24.04
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libvulkan1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# IMPORTANTE: los binarios buscan el shader en "../shaders/geodesic*.spv"
+# (ruta relativa al directorio de trabajo, igual que en gpu_vulkan/build/).
+# Por eso replicamos la misma disposición: bin/ y shaders/ como hermanos,
+# y fijamos WORKDIR en bin/ para que "../shaders/..." resuelva correcto.
+WORKDIR /app/bin
+COPY --from=build /src/gpu_vulkan/build/gpu_image /app/bin/gpu_image
+COPY --from=build /src/gpu_vulkan/build/gpu_video /app/bin/gpu_video
+COPY gpu_vulkan/shaders /app/shaders
+
+CMD ["/app/bin/gpu_image"]
